@@ -1,0 +1,91 @@
+<mujoco>
+  <option gravity="0 0 -9.81" timestep="0.001"/>
+  
+  <worldbody>
+    <light diffuse=".8 .8 .8" pos="0 0 3" dir="0 -1 0"/>
+    <geom type="plane" size="10 10 0.1" rgba="0.9 0.9 0.9 1"/>
+
+    <!-- Свободный шар на платформе -->
+    <body name="ball" pos="0.0 0.1175 0.5">
+      <freejoint name="ball_freejoint"/>
+      <geom type="sphere" size="0.02" rgba="0.9 0.1 0.1 1" friction="1.0 0.005 0.0005" mass="0.001"/>
+    </body>
+
+    <!-- =================================================================== -->
+    <!-- ПЛАТФОРМА (Центр вращения D в точке [0.1, 0.1175, 0.1235])          -->
+    <!-- =================================================================== -->
+    <body name="platform_parent" pos="0.1 0.1175 0.1">
+      <body name="platform" pos="0 0 0.0235">
+        <joint name="platform_joint" type="ball" damping="0.1"/>
+        <geom type="box" size="0.3 0.3 0.005" rgba="0.8 0.8 0.8 1" friction="1 0.005 0.0001"/>
+        
+        <!-- Жестко закрепленные ножки Hkp = 0.0235, идущие вертикально вниз -->
+        <!-- Конечные точки (сайты) находятся ровно в точках B1 и B2 на высоте Z = 0.1000 в мире -->
+        <body name="hkp_link1" pos="-0.12 0 0">
+          <geom type="capsule" fromto="0 0 0  0 0 -0.0235" size="0.004" rgba="0.4 0.4 0.4 1"/>
+          <site name="anchor_platform_mech1" pos="0 0 -0.0235" size="0.005" rgba="1 0 0 1"/>
+        </body>
+        
+        <body name="hkp_link2" pos="0 -0.12 0">
+          <geom type="capsule" fromto="0 0 0  0 0 -0.0235" size="0.004" rgba="0.4 0.4 0.4 1"/>
+          <site name="anchor_platform_mech2" pos="0 0 -0.0235" size="0.005" rgba="0 0 1 1"/>
+        </body>
+      </body>
+    </body>
+
+    <!-- =================================================================== -->
+    <!-- МЕХАНИЗМ 1 (Плоскость X-Z, мотор крутит вокруг Y)                  -->
+    <!-- =================================================================== -->
+    <body name="mech1_base" pos="0.01855 0.1175 -0.02866">
+      <!-- Ведущий мотор с вашим новым точным расчетным углом -->
+      <joint name="mech1_motor" type="hinge" axis="0 1 0" range="109 243" ref="164.53566" damping="0.5"/>
+      
+      <!-- Звено L1: выходит из базы O под углом 164.53566 градусов в точку А -->
+      <body name="link1" pos="-0.03855 0 0.01066">
+        <geom type="capsule" fromto="0.03855 0 -0.01066  0 0 0" size="0.005" rgba="0.6 0.6 0.6 1"/>
+        
+        <!-- Шатун L2 = 0.118: начинается в точке A, идет строго вертикально вверх -->
+        <body name="link2" pos="0 0 0">
+          <joint name="link2_joint" type="hinge" axis="0 1 0"/>
+          <geom type="capsule" fromto="0 0 0  0 0 0.118" size="0.005" rgba="0.7 0.7 0.7 1"/>
+          <!-- Конец шатуна L2 (Точка B1) -->
+          <site name="anchor_mech1_tip" pos="0 0 0.118" size="0.004" rgba="1 0 0 1"/>
+        </body>
+      </body>
+    </body>
+
+    <!-- =================================================================== -->
+    <!-- МЕХАНИЗМ 2 (Плоскость Y-Z, мотор крутит вокруг X)                  -->
+    <!-- =================================================================== -->
+    <body name="mech2_base" pos="0.1 0.01855 -0.02866">
+      <!-- Ведущий мотор -->
+      <joint name="mech2_motor" type="hinge" axis="1 0 0" range="109 243" ref="164.53566" damping="0.5"/>
+      
+      <!-- Звено L1 -->
+      <body name="link1_2" pos="0 -0.03855 0.01066">
+        <geom type="capsule" fromto="0 0.03855 -0.01066  0 0 0" size="0.005" rgba="0.6 0.6 0.6 1"/>
+        
+        <!-- Шатун L2 = 0.118 -->
+        <body name="link2_2" pos="0 0 0">
+          <joint name="link2_joint_2" type="hinge" axis="1 0 0"/>
+          <geom type="capsule" fromto="0 0 0  0 0 0.118" size="0.005" rgba="0.7 0.7 0.7 1"/>
+          <!-- Конец шатуна L2 (Точка B2) -->
+          <site name="anchor_mech2_tip" pos="0 0 0.118" size="0.004" rgba="0 0 1 1"/>
+        </body>
+      </body>
+    </body>
+
+  </worldbody>
+
+  <actuator>
+    <!-- kp="10" заставит шарнир жестко следовать за углами, приходящими из PID -->
+    <position name="pitch_motor" joint="mech1_motor" kp="10"/>
+    <position name="roll_motor" joint="mech2_motor" kp="10"/>
+  </actuator>
+
+  <equality>
+    <!-- Замыкание петель с максимальной жесткостью (без люфтов) -->
+    <connect site1="anchor_mech1_tip" site2="anchor_platform_mech1" solref="0.001 1" solimp="0.99 0.999 0.001"/>
+    <connect site1="anchor_mech2_tip" site2="anchor_platform_mech2" solref="0.001 1" solimp="0.99 0.999 0.001"/>
+  </equality>
+</mujoco>

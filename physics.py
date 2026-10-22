@@ -39,3 +39,16 @@ class PhysicsEngine:
         ball_pos = self.data.xpos[self.ball_id]
         platform_pos = self.data.xpos[self.platform_id]
         return ball_pos[0] - platform_pos[0], ball_pos[1] - platform_pos[1]
+
+    def get_state(self):
+        # Возвращаем вектор состояния [x, vx, y, vy]
+        ball_pos = self.data.xpos[self.ball_id]
+        platform_pos = self.data.xpos[self.platform_id]
+        
+        # Линейные скорости (первые 3 компонента qvel)
+        # Нам нужны vx и vy. В MuJoCo они могут быть в разных индексах, 
+        # но обычно для свободного тела это первые два.
+        ball_vel = self.data.qvel[self.ball_qposadr : self.ball_qposadr + 2]
+        
+        return [ball_pos[0] - platform_pos[0], ball_vel[0], 
+               ball_pos[1] - platform_pos[1], ball_vel[1]]

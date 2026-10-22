@@ -2,104 +2,81 @@ import time
 import numpy as np
 from physics import PhysicsEngine
 from PID import PID
+from MPC import MPCController
 
-def run_simulation(kp, ki, kd, render=False):
+def run_mpc_simulation(render=False):
     engine = PhysicsEngine("models/mechanism.xml")
     
-    # Инициализируем симуляцию случайным положением шара
+    # Load matrices for MPC
+    try:
+        A = np.loadtxt("A_matrix.csv", delimiter=",")
+        B = np.loadtxt("B_matrix.csv", delimiter=",")
+    except FileNotFoundError:
+        print("Error: Identification matrices not found. Run identify_system.py first.")
+        return
+
+    # ИСПРАВЛЕНИЕ 1: Кардинально увеличиваем R для плавности и уменьшаем агрессивность Q
+    Q = np.diag([100.0, 1.0, 100.0, 1.0]) # Умеренный штраф за позицию и скорость
+    R = np.diag([50.0, 50.0])             # Высокий штраф на моторы — убирает дергание
+    mpc = MPCController(A, B, Q, R)
+
     engine.reset_ball()
-    
-    pid_pitch = PID(kp=kp, ki=ki, kd=kd, dt=0.002, desired=0.0)
-    pid_roll = PID(kp=kp, ki=ki, kd=kd, dt=0.002, desired=0.0)
     
     total_error = 0.0
     steps = 500
+    control_frequency = 10  # Обновляем управление раз в 10 шагов физики (100 Гц)
+    u = np.array([0.0, 0.0]) # Текущий буфер команд для моторов
     
     if render:
         import mujoco.viewer
+        t = 0
         with mujoco.viewer.launch_passive(engine.model, engine.data) as viewer:
-            while(1):
+            while True:
                 if not viewer.is_running(): break
-                x_err, y_err = engine.get_ball_relative_position()
+                state = engine.get_state()
+                x_err, y_err = state[0], state[2]
                 
                 err = np.sqrt(x_err**2 + y_err**2)
                 total_error += err
                 
-                pitch_out = pid_pitch.calc_out(x_err)
-                roll_out = pid_roll.calc_out(y_err)
+                # ИСПРАВЛЕНИЕ 2: Считаем управление LQR только на каждом 10-м шаге
+                if t % control_frequency == 0:
+                    u = mpc.compute_control(state)
                 
-                engine.set_motor_positions(pitch_out, roll_out)
+                # Применяем зафиксированное управление u на каждом шаге физики
+                engine.set_motor_positions(u[0], u[1])
                 engine.step()
                 viewer.sync()
                 time.sleep(engine.model.opt.timestep)
+                t += 1
     else:
-        # Внутри цикла фонового расчета функции run_simulation:
         for t in range(steps):
-            x_err, y_err = engine.get_ball_relative_position()
-        
-            # Квадрат расстояния — сильнее наказывает за далекий улет шара
-            err = x_err**2 + y_err**2
-        
-            # Добавляем штраф за скорость шара (чтобы PID учился тормозить шар, а не просто раскачивать)
-            # qvelсвободного сустава шара: первые 3 элемента — линейные скорости
+            state = engine.get_state()
+            x_err, y_err = state[0], state[2]
+            
+            # Penalty for distance and velocity
             ball_vel = engine.data.qvel[engine.ball_qposadr : engine.ball_qposadr + 2]
-            vel_penalty = np.sum(ball_vel**2) * 0.1 # Вес штрафа за скорость
-        
-            total_error += (err + vel_penalty)
-        
-            pitch_out = pid_pitch.calc_out(x_err)
-            roll_out = pid_roll.calc_out(y_err)
-        
-            engine.set_motor_positions(pitch_out, roll_out)
+            err = (x_err**2 + y_err**2) + np.sum(ball_vel**2) * 0.1
+            
+            total_error += err
+            
+            # ИСПРАВЛЕНИЕ 3: Дублируем логику редкого вызова управления для фонового режима
+            if t % control_frequency == 0:
+                u = mpc.compute_control(state)
+                
+            engine.set_motor_positions(u[0], u[1])
             engine.step()
-        
-            # Жесткий штраф за падение
-            if np.sqrt(x_err**2 + y_err**2) > 0.075: 
-                total_error += (steps - t) * 10.0 # Даем массивный штраф
+            
+            # Penalty for falling off (размер платформы 0.15, предел от центра 0.075)
+            if np.sqrt(x_err**2 + y_err**2) > 0.075:
+                total_error += (steps - t) * 10.0
                 break
         
-                
-    return total_error
-
-def twiddle(tol=0.05):
-    p = [15.0, 0.01, 1.0]
-    dp = [10.0, 0.5, 5.0]
-    
-    print("Оцениваем базовые параметры...")
-    best_err = run_simulation(p[0], p[1], p[2], render=False)
-    
-    it = 0
-    while sum(dp) > tol:
-        print(f"Итерация {it:2d} | Kp={p[0]:.2f}, Ki={p[1]:.2f}, Kd={p[2]:.2f} | Шаг dp: {sum(dp):.3f} | Best Err: {best_err:.4f}")
-        for i in range(len(p)):
-            p[i] += dp[i]
-            err = run_simulation(p[0], p[1], p[2], render=False)
-            
-            if err < best_err:
-                best_err = err
-                dp[i] *= 1.1
-            else:
-                p[i] -= 2 * dp[i]
-                err = run_simulation(p[0], p[1], p[2], render=False)
-                
-                if err < best_err:
-                    best_err = err
-                    dp[i] *= 1.1
-                else:
-                    p[i] += dp[i]
-                    dp[i] *= 0.9
-        it += 1
-        if it > 5000: break
-        
-    return p
+    print(f"MPC Simulation complete. Total Error: {total_error:.4f}")
 
 def main():
-    print("--- Запуск автонастройки PID (Twiddle) ---")
-    best_pid = twiddle()
-    print(f"\nОптимальные коэффициенты: Kp={best_pid[0]:.4f}, Ki={best_pid[1]:.4f}, Kd={best_pid[2]:.4f}")
-    
-    print("\nЗапуск демонстрации...")
-    run_simulation(best_pid[0], best_pid[1], best_pid[2], render=True)
+    # Run MPC with rendering
+    run_mpc_simulation(render=True)
 
 if __name__ == "__main__":
     main()

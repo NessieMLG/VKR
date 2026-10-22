@@ -1,0 +1,60 @@
+<mujoco>
+  <option gravity="0 0 -9.81" timestep="0.0005" iterations="150"/>
+  
+  <worldbody>
+    <light diffuse=".8 .8 .8" pos="0 0 3" dir="0 -1 0"/>
+    <geom type="plane" size="10 10 0.1" rgba="0.9 0.9 0.9 1"/>
+
+    <!-- 1D Шар со свободным качением -->
+    <body name="ball" pos="0.1 0.1175 0.12">
+      <freejoint name="ball_freejoint"/>
+      <geom type="sphere" size="0.02" rgba="0.9 0.1 0.1 1" friction="0.5 0.005 0.0001" mass="0.05"/>
+    </body>
+
+    <!-- Поворотная платформа (Точка D) -->
+    <body name="platform_parent" pos="0.0 0.0 0.1">
+      <body name="platform" pos="0 0 0">
+        <joint name="platform_joint" type="ball" axis="0 1 0" damping="0.2"/>
+        <geom type="box" size="0.2 0.2 0.005" rgba="0.8 0.8 0.8 1" friction="0.5 0.005 0.0001"/>
+        
+        <!-- Точка крепления B1 находится ровно в мировых X=-0.02, Z=0.1000 -->
+        <body name="hkp_link1" pos="-0.12 0 0">
+          <geom type="capsule" fromto="0 0 0  0 0 -0.0235" size="0.004" rgba="0.4 0.4 0.4 1"/>
+          <site name="anchor_platform_mech1" pos="0 0 -0.0235" size="0.005" rgba="1 0 0 1"/>
+        </body>
+      </body>
+    </body>
+
+    <!-- =================================================================== -->
+    <!-- ЧИСТАЯ ДЕКАРТОВАЯ СБОРКА (Без ref и euler, оси строго параллельны) -->
+    <!-- =================================================================== -->
+    
+    <!-- Тело 1: Мотор O1. Находится в точке O -->
+    <body name="link1_body" pos="0.1175 0.0 0.0">
+      <joint name="mech1_motor" type="hinge" axis="0 1 0" range="-50 50" damping="5.0"/>
+      <!-- Отрисовка кривошипа L1: от мотора (0 0 0) в точку шарнира A -->
+      <geom type="capsule" fromto="0 0 0  0.039173189578645832349213268680268 0 -0.0080908107279476978142521701273746" size="0.005" rgba="0.6 0.6 0.6 1"/>
+      
+      <!-- Тело 2: Шатун L2. Позиционируется в точке А ОТНОСИТЕЛЬНО мотора -->
+      <body name="link2_body" pos="0.039173189578645832349213268680268 0 -0.0080908107279476978142521701273746">
+        <!-- Ось строго 0 1 0 — теперь она никогда не перекосится! -->
+        <joint name="link2_joint" type="hinge" axis="0 1 0" damping="5.0"/>
+        <!-- Отрисовка шатуна L2: от точки A (0 0 0) в глобальную точку B -->
+        <!-- Относительный вектор AB: [-0.02 - (-0.04587)] = 0.02587, [0.1000 - (-0.0013)] = 0.1013 -->
+        <geom type="capsule" fromto="0 0 0  0.02587 0 0.1013" size="0.005" rgba="0.7 0.7 0.7 1"/>
+        <!-- Сайт находится ровно на конце капсулы, совпадая с точкой B -->
+        <site name="anchor_mech1_tip" pos="0.02587 0 0.1013" size="0.004" rgba="1 0 0 1"/>
+      </body>
+    </body>
+
+  </worldbody>
+
+  <actuator>
+    <position name="pitch_motor" joint="mech1_motor" gear="1" kp="40" ctrlrange="-15 15" forcerange="-50.0 50.0"/>
+  </actuator>
+
+  <equality>
+    <!-- Идеальное замыкание петель без натяжений и перекосов осей -->
+    <connect site1="anchor_mech1_tip" site2="anchor_platform_mech1" solref="0.005 1" solimp="0.92 0.98 0.001"/>
+  </equality>
+</mujoco>

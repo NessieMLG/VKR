@@ -32,4 +32,4 @@ class LQRController1D:
         u_scalar = float(u_out[0])
         
         # Ограничиваем угол в безопасном диапазоне (примерно +- 4.5 градуса)
-        return np.clip(u_scalar, -0.08, 0.08)
+        return np.clip(u_scalar, -0.150, 0.150)

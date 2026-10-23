@@ -1,28 +1,38 @@
 <mujoco>
-  <option gravity="0 0 -9.81" timestep="0.0005" iterations="150"/>
+  <option gravity="0 0 -9.81" timestep="0.0001" iterations="300" solver="CG" tolerance="1e-8"/>
   
   <worldbody>
     <light diffuse=".8 .8 .8" pos="0 0 3" dir="0 -1 0"/>
     <geom type="plane" size="10 10 0.1" rgba="0.9 0.9 0.9 1"/>
 
     <!-- 1D Шар со свободным качением -->
-    <body name="ball" pos="0.1 0.1175 0.12">
+    <body name="ball" pos="0.1 0.0 0.4">
       <freejoint name="ball_freejoint"/>
-      <geom type="sphere" size="0.02" rgba="0.9 0.1 0.1 1" friction="0.5 0.005 0.0001" mass="0.05"/>
+      <geom type="sphere" size="0.02" rgba="0.9 0.1 0.1 1" friction="0.5 0.05 0.01" mass="0.001"/>
     </body>
 
     <!-- Поворотная платформа (Точка D) -->
-    <body name="platform_parent" pos="0.0 0.0 0.1">
+    <body name="platform_parent" pos="0.0 0.0 0.3175">
       <body name="platform" pos="0 0 0">
-        <joint name="platform_joint" type="ball" axis="0 1 0" damping="0.2"/>
-        <geom type="box" size="0.2 0.2 0.005" rgba="0.8 0.8 0.8 1" friction="0.5 0.005 0.0001"/>
+        <joint name="platform_joint" type="hinge" axis="0 1 0" damping="0.5"/>
+        <geom name="platform_base" type="box" size="1.0 0.1 0.005" rgba="0.8 0.8 0.8 1" friction="0.5 0.05 0.001"/>
+
+        <!-- ================= БОРТИКИ ДЛЯ ПЛАТФОРМЫ ================= -->
+        <!-- Правый бортик (на +X краю платформы) -->
+        <!--<geom name="border_right" type="box" size="0.005 0.3 0.05" pos="0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!-- Левый бортик (на -X краю платформы) -->
+        <!--<geom name="border_left" type="box" size="0.005 0.3 0.05" pos="-0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!-- ========================================================= -->
         
         <!-- Точка крепления B1 находится ровно в мировых X=-0.02, Z=0.1000 -->
-        <body name="hkp_link1" pos="-0.12 0 0">
+        <body name="hkp_link1" pos="0.12 0.02 0">
           <geom type="capsule" fromto="0 0 0  0 0 -0.0235" size="0.004" rgba="0.4 0.4 0.4 1"/>
-          <site name="anchor_platform_mech1" pos="0 0 -0.0235" size="0.005" rgba="1 0 0 1"/>
+          <!--<body name="anchor_weld_point" pos="0 0 0"/>-->
+          <site name="anchor_platform_mech1" pos="0 0 -0.0235" size="0.001" rgba="1 0 0 1"/>
+          <!--<joint name="anchor_joint" type="hinge" axis="0 1 0" damping="0.001"/>-->
         </body>
       </body>
+      
     </body>
 
     <!-- =================================================================== -->
@@ -30,31 +40,43 @@
     <!-- =================================================================== -->
     
     <!-- Тело 1: Мотор O1. Находится в точке O -->
-    <body name="link1_body" pos="0.1175 0.0 0.0">
-      <joint name="mech1_motor" type="hinge" axis="0 1 0" range="-50 50" damping="5.0"/>
+    <body name="link1_body" pos="0.1 0.0 0.2">
+      <geom type="capsule" fromto="0 0 0  0.039173189578645832349213268680268 0 0.0080908107279476978142521701273746" size="0.005" rgba="0.6 0.6 0.6 1"/>
+      <joint name="mech1_motor" type="hinge" axis="0 1 0" damping="0.1"/>
       <!-- Отрисовка кривошипа L1: от мотора (0 0 0) в точку шарнира A -->
-      <geom type="capsule" fromto="0 0 0  0.039173189578645832349213268680268 0 -0.0080908107279476978142521701273746" size="0.005" rgba="0.6 0.6 0.6 1"/>
       
       <!-- Тело 2: Шатун L2. Позиционируется в точке А ОТНОСИТЕЛЬНО мотора -->
-      <body name="link2_body" pos="0.039173189578645832349213268680268 0 -0.0080908107279476978142521701273746">
+      <body name="link2_body" pos="0.039173189578645832349213268680268 0 0.0080908107279476978142521701273746">
         <!-- Ось строго 0 1 0 — теперь она никогда не перекосится! -->
-        <joint name="link2_joint" type="hinge" axis="0 1 0" damping="5.0"/>
+        <geom type="capsule" fromto="0 0 0  -0.019999999999999996776100322075895 0 0.085909189272052302227208797006242" size="0.005" rgba="0.7 0.7 0.7 1"/>
+        <joint name="link2_joint" type="hinge" axis="0 1 0" damping="0.1"/>
         <!-- Отрисовка шатуна L2: от точки A (0 0 0) в глобальную точку B -->
         <!-- Относительный вектор AB: [-0.02 - (-0.04587)] = 0.02587, [0.1000 - (-0.0013)] = 0.1013 -->
-        <geom type="capsule" fromto="0 0 0  0.02587 0 0.1013" size="0.005" rgba="0.7 0.7 0.7 1"/>
         <!-- Сайт находится ровно на конце капсулы, совпадая с точкой B -->
-        <site name="anchor_mech1_tip" pos="0.02587 0 0.1013" size="0.004" rgba="1 0 0 1"/>
+        <body name="anchor_mech1_tip" pos="-0.019999999999999996776100322075895 0 0.085909189272052302227208797006242">
+          <geom type="sphere" size="0.001" mass="0.05"/>
+          <joint name="tip_joint" type="hinge" axis="0 1 0" damping="0.1"/>
+          <site name="weld_point" pos="0 0.02 0"/>
+        </body>
+        <!--<joint name="link2_joint2" type="hinge" axis="0 1 0" pos="-0.019999999999999996776100322075895 0 0.085909189272052302227208797006242" damping="0.0001" stiffness="100"/>-->
       </body>
     </body>
 
   </worldbody>
 
   <actuator>
-    <position name="pitch_motor" joint="mech1_motor" gear="1" kp="40" ctrlrange="-15 15" forcerange="-50.0 50.0"/>
+    <position name="pitch_motor" joint="mech1_motor" gear="1" kp="50" kv="10" ctrlrange="-0.15 0.15" forcerange="-1000.0 1000.0"/>
   </actuator>
 
   <equality>
     <!-- Идеальное замыкание петель без натяжений и перекосов осей -->
-    <connect site1="anchor_mech1_tip" site2="anchor_platform_mech1" solref="0.005 1" solimp="0.92 0.98 0.001"/>
+    <connect site1="anchor_platform_mech1" site2="weld_point" solref="0.001 1" solimp="0.95 0.95 0.001"/>
+    <!--<connect site1="anchor_mech1_tip" site2="anchor_platform_mech1" solref="0.05 1" solimp="0.92 0.98 0.1"/>-->
+    <!--<joint joint1="link2_joint2" joint2="anchor_joint" solref="0.005 1" solimp="0.92 0.98 0.1"/>-->
   </equality>
+
+  <contact>
+    <exclude name="interlink" body1="link1_body" body2="link2_body"/>
+    <exclude name="interlink2" body1="link2_body" body2="hkp_link1"/>
+  </contact>
 </mujoco>

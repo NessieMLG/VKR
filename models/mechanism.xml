@@ -1,84 +1,118 @@
 <mujoco>
-  <option gravity="0 0 -9.81" timestep="0.0005"/> <!-- Шаг 0.5 мс для идеальной сходимости жестких связей -->
+  <option gravity="0 0 -9.81" timestep="0.0001" iterations="300" solver="CG" tolerance="1e-8"/>
   
   <worldbody>
     <light diffuse=".8 .8 .8" pos="0 0 3" dir="0 -1 0"/>
     <geom type="plane" size="10 10 0.1" rgba="0.9 0.9 0.9 1"/>
 
-    <!-- Свободный 2D Шар -->
-    <body name="ball" pos="0.1 0.1175 0.2">
+    <!-- 1D Шар со свободным качением -->
+    <body name="ball" pos="0.1 0.0 0.4">
       <freejoint name="ball_freejoint"/>
-      <geom type="sphere" size="0.02" rgba="0.9 0.1 0.1 1" friction="0.5 0.005 0.0001" mass="0.05"/>
+      <geom type="sphere" size="0.02" rgba="0.9 0.1 0.1 1" friction="0.5 0.05 0.01" mass="0.001"/>
     </body>
 
-    <!-- Поворотная платформа (Центр кардана D в точке [0.1, 0.1175, 0.1235]) -->
-    <body name="platform_parent" pos="0.1 0.1175 0.1">
-      <body name="platform" pos="0 0 0.0235">
-        <joint name="platform_joint" type="ball" damping="0.2"/>
-        <geom type="box" size="0.15 0.15 0.005" rgba="0.8 0.8 0.8 1" friction="0.5 0.005 0.0001"/>
+    <!-- Поворотная платформа (Точка D) -->
+    <body name="platform_parent" pos="0.0 0.0 0.3175">
+      <body name="platform" pos="0 0 0">
+        <joint name="platform_roll" type="hinge" axis="1 0 0" damping="0.5"/>
+        <joint name="platform_pitch" type="hinge" axis="0 1 0" damping="0.5"/>
+        <geom name="platform_base" type="box" size="1.0 1.0 0.005" rgba="0.8 0.8 0.8 1" friction="0.5 0.05 0.001"/>
+
+        <!-- ================= БОРТИКИ ДЛЯ ПЛАТФОРМЫ ================= -->
+        <!-- Правый бортик (на +X краю платформы) -->
+        <!--<geom name="border_right" type="box" size="0.005 0.3 0.05" pos="0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!-- Левый бортик (на -X краю платформы) -->
+        <!--<geom name="border_left" type="box" size="0.005 0.3 0.05" pos="-0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!-- ========================================================= -->
         
-        <!-- Жестко закрепленные ножки Hkp = 0.0235 согласно вашему чертежу -->
-        <!-- Ножка 1 (Сдвиг влево по Х на Lkp = -0.12) -->
-        <body name="hkp_link1" pos="-0.12 0 0">
+        <!-- Точка крепления B1 находится ровно в мировых X=-0.02, Z=0.1000 -->
+        <body name="hkp_motor1" pos="0.12 0.02 0">
           <geom type="capsule" fromto="0 0 0  0 0 -0.0235" size="0.004" rgba="0.4 0.4 0.4 1"/>
-          <site name="anchor_platform_mech1" pos="0 0 -0.0235" size="0.005" rgba="1 0 0 1"/>
+          <!--<body name="anchor_weld_point" pos="0 0 0"/>-->
+          <site name="anchor_platform_mech1" pos="0 0 -0.0235" size="0.001" rgba="1 0 0 1"/>
+          <!--<joint name="anchor_joint" type="hinge" axis="0 1 0" damping="0.001"/>-->
         </body>
-        
-        <!-- Ножка 2 (Сдвиг назад по Y на Lkp = -0.12) -->
-        <body name="hkp_link2" pos="0 -0.12 0">
+
+        <!-- Точка крепления B2 находится ровно в мировых Y=-0.02, Z=0.1000 -->
+        <body name="hkp_motor2" pos="0.02 0.12 0">
           <geom type="capsule" fromto="0 0 0  0 0 -0.0235" size="0.004" rgba="0.4 0.4 0.4 1"/>
-          <site name="anchor_platform_mech2" pos="0 0 -0.0235" size="0.005" rgba="0 0 1 1"/>
+          <!--<body name="anchor_weld_point" pos="0 0 0"/>-->
+          <site name="anchor_platform_mech2" pos="0 0 -0.0235" size="0.001" rgba="1 0 0 1"/>
+          <!--<joint name="anchor_joint" type="hinge" axis="0 1 0" damping="0.001"/>-->
         </body>
       </body>
+      
     </body>
 
     <!-- =================================================================== -->
-    <!-- МЕХАНИЗМ 1 (Плоскость X-Z, ось вращения мотора Y)                  -->
+    <!-- ЧИСТАЯ ДЕКАРТОВАЯ СБОРКА (Без ref и euler, оси строго параллельны) -->
     <!-- =================================================================== -->
-    <body name="mech1_base" pos="0.0 0.1175 -0.041">
-      <joint name="mech1_motor" type="hinge" axis="0 1 0" range="-180 180" damping="5.0"/>
+    
+    <!-- Тело 1: Мотор O1. Находится в точке O -->
+    <body name="link1_motor1" pos="0.1 0.0 0.2">
+      <geom type="capsule" fromto="0 0 0  0.039173189578645832349213268680268 0 0.0080908107279476978142521701273746" size="0.005" rgba="0.6 0.6 0.6 1"/>
+      <joint name="mech_motor1" type="hinge" axis="0 1 0" damping="0.1"/>
+      <!-- Отрисовка кривошипа L1: от мотора (0 0 0) в точку шарнира A -->
       
-      <!-- Звено L1: Сдвиг в точку А под углом 164.53566° (влево -X и вверх +Z от мотора) -->
-      <body name="link1" pos="-0.03855 0 0.01066">
-        <geom type="capsule" fromto="0 0 0  0.03855 0 -0.01066" size="0.005" rgba="0.6 0.6 0.6 1"/>
-        
-        <!-- Шатун L2 = 0.118: Идет строго вертикально вверх к ножке платформы -->
-        <body name="link2" pos="0 0 0">
-          <joint name="link2_joint" type="hinge" axis="0 1 0"/>
-          <geom type="capsule" fromto="0 0 0  0 0 0.118" size="0.005" rgba="0.7 0.7 0.7 1"/>
-          <site name="anchor_mech1_tip" pos="0 0 0.118" size="0.004" rgba="1 0 0 1"/>
+      <!-- Тело 2: Шатун L2. Позиционируется в точке А ОТНОСИТЕЛЬНО мотора -->
+      <body name="link2_motor1" pos="0.039173189578645832349213268680268 0 0.0080908107279476978142521701273746">
+        <!-- Ось строго 0 1 0 — теперь она никогда не перекосится! -->
+        <geom type="capsule" fromto="0 0 0  -0.019999999999999996776100322075895 0 0.085909189272052302227208797006242" size="0.005" rgba="0.7 0.7 0.7 1"/>
+        <joint name="link2_motor1_joint" type="hinge" axis="0 1 0" damping="0.1"/>
+        <!-- Отрисовка шатуна L2: от точки A (0 0 0) в глобальную точку B -->
+        <!-- Относительный вектор AB: [-0.02 - (-0.04587)] = 0.02587, [0.1000 - (-0.0013)] = 0.1013 -->
+        <!-- Сайт находится ровно на конце капсулы, совпадая с точкой B -->
+        <body name="anchor_motor1_tip" pos="-0.019999999999999996776100322075895 0 0.085909189272052302227208797006242">
+          <geom type="sphere" size="0.001" mass="0.05"/>
+          <site name="weld_point_motor1" pos="0 0.02 0"/>
         </body>
+        <!--<joint name="link2_joint2" type="hinge" axis="0 1 0" pos="-0.019999999999999996776100322075895 0 0.085909189272052302227208797006242" damping="0.0001" stiffness="100"/>-->
       </body>
     </body>
 
-    <!-- =================================================================== -->
-    <!-- МЕХАНИЗМ 2 (Плоскость Y-Z, ось вращения мотора X)                  -->
-    <!-- =================================================================== -->
-    <body name="mech2_base" pos="0.1 0.0175 -0.041">
-      <joint name="mech2_motor" type="hinge" axis="1 0 0" range="-180 180" damping="5.0"/>
+    <!-- Тело 2: Мотор O2. Находится в точке O -->
+    <body name="link1_motor2" pos="0.0 0.1 0.2">
+      <geom type="capsule" fromto="0 0 0  0 0.039173189578645832349213268680268 0.0080908107279476978142521701273746" size="0.005" rgba="0.6 0.6 0.6 1"/>
+      <joint name="mech_motor2" type="hinge" axis="1 0 0" damping="0.1"/>
+      <!-- Отрисовка кривошипа L1: от мотора (0 0 0) в точку шарнира A -->
       
-      <!-- Звено L1: Сдвиг под тем же углом, но в плоскости Y-Z (влево -Y и вверх +Z от мотора) -->
-      <body name="link1_2" pos="0 -0.03855 0.01066">
-        <geom type="capsule" fromto="0 0 0  0 0.03855 -0.01066" size="0.005" rgba="0.6 0.6 0.6 1"/>
-        
-        <!-- Шатун L2 = 0.118: Идет строго вертикально вверх к ножке 2 -->
-        <body name="link2_2" pos="0 0 0">
-          <joint name="link2_joint_2" type="hinge" axis="1 0 0"/>
-          <geom type="capsule" fromto="0 0 0  0 0 0.118" size="0.005" rgba="0.7 0.7 0.7 1"/>
-          <site name="anchor_mech2_tip" pos="0 0 0.118" size="0.004" rgba="0 0 1 1"/>
+      <!-- Тело 2: Шатун L2. Позиционируется в точке А ОТНОСИТЕЛЬНО мотора -->
+      <body name="link2_motor2" pos="0 0.039173189578645832349213268680268 0.0080908107279476978142521701273746">
+        <!-- Ось строго 0 1 0 — теперь она никогда не перекосится! -->
+        <geom type="capsule" fromto="0 0 0  0 -0.019999999999999996776100322075895 0.085909189272052302227208797006242" size="0.005" rgba="0.7 0.7 0.7 1"/>
+        <joint name="link2_motor2_joint" type="hinge" axis="1 0 0" damping="0.1"/>
+        <!-- Отрисовка шатуна L2: от точки A (0 0 0) в глобальную точку B -->
+        <!-- Относительный вектор AB: [-0.02 - (-0.04587)] = 0.02587, [0.1000 - (-0.0013)] = 0.1013 -->
+        <!-- Сайт находится ровно на конце капсулы, совпадая с точкой B -->
+        <body name="anchor_motor2_tip" pos="0 -0.019999999999999996776100322075895 0.085909189272052302227208797006242">
+          <geom type="sphere" size="0.001" mass="0.05"/>
+          <site name="weld_point_motor2" pos="0.02 0 0"/>
         </body>
+        <!--<joint name="link2_joint2" type="hinge" axis="0 1 0" pos="-0.019999999999999996776100322075895 0 0.085909189272052302227208797006242" damping="0.0001" stiffness="100"/>-->
       </body>
     </body>
+
   </worldbody>
 
   <actuator>
-    <position name="pitch_motor" joint="mech1_motor" gear="10" kp="40"/>
-    <position name="roll_motor" joint="mech2_motor" gear="10" kp="40"/>
+    <position name="motor1" joint="mech_motor1" gear="1" kp="50" kv="10" ctrlrange="-0.15 0.15" forcerange="-1000.0 1000.0"/>
+    <position name="motor2" joint="mech_motor2" gear="-1" kp="50" kv="10" ctrlrange="-0.15 0.15" forcerange="-1000.0 1000.0"/>
   </actuator>
 
   <equality>
-    <!-- Затягиваем петли: сопряжение абсолютно жесткое, паразитные колебания исключены -->
-    <connect site1="anchor_mech1_tip" site2="anchor_platform_mech1" solref="0.005 1" solimp="0.92 0.98 0.001"/>
-    <connect site1="anchor_mech2_tip" site2="anchor_platform_mech2" solref="0.005 1" solimp="0.92 0.98 0.001"/>
+    <!-- Идеальное замыкание петель без натяжений и перекосов осей -->
+    <connect site1="anchor_platform_mech1" site2="weld_point_motor1" solref="0.001 1" solimp="0.95 0.95 0.001"/>
+    <connect site1="anchor_platform_mech2" site2="weld_point_motor2" solref="0.001 1" solimp="0.95 0.95 0.001"/>
+    <!--<connect site1="anchor_mech1_tip" site2="anchor_platform_mech1" solref="0.05 1" solimp="0.92 0.98 0.1"/>-->
+    <!--<joint joint1="link2_joint2" joint2="anchor_joint" solref="0.005 1" solimp="0.92 0.98 0.1"/>-->
   </equality>
+
+  <contact>
+    <exclude name="interlink1_motor1" body1="link1_motor1" body2="link2_motor1"/>
+    <exclude name="interlink2_motor1" body1="anchor_motor1_tip" body2="hkp_motor1"/>
+    <exclude name="interlink3_motor1" body1="link2_motor1" body2="hkp_motor1"/>
+    <exclude name="interlink1_motor2" body1="link1_motor2" body2="link2_motor2"/>
+    <exclude name="interlink2_motor2" body1="anchor_motor2_tip" body2="hkp_motor2"/>
+    <exclude name="interlink3_motor2" body1="link2_motor2" body2="hkp_motor2"/>
+  </contact>
 </mujoco>

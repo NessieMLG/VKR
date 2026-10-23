@@ -1,54 +1,51 @@
 import mujoco
 import numpy as np
 
-class PhysicsEngine:
+class PhysicsEngine2D:
     def __init__(self, model_path):
         self.model = mujoco.MjModel.from_xml_path(model_path)
         self.data = mujoco.MjData(self.model)
         
-        # Кэшируем ID, чтобы не искать их в цикле на каждом шаге (повышает скорость)
         self.ball_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "ball")
         self.platform_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "platform")
         
-        # Находим ID свободного сустава шара для управления его позицией напрямую
+        # Получаем стартовые адреса в qpos и qvel для свободного сустава шара
         self.ball_qposadr = self.model.jnt_qposadr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "ball_freejoint")]
+        self.ball_qveladr = self.model.jnt_dofadr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "ball_freejoint")]
 
-    def reset_ball(self):
-        """Сбрасывает систему в фиксированное начальное состояние для тестов"""
+    def reset_ball(self, offset_x=0.04, offset_y=0.04):
         mujoco.mj_resetData(self.model, self.data)
         
-        # Спавним шар ВСЕГДА в одной и той же точке (например, 4 см по X и 4 см по Y)
-        # Это даст честную оценку для Twiddle
-        self.data.qpos[self.ball_qposadr : self.ball_qposadr + 2] = [0.1, 0.1175]
+        # Задаем смещение по X (0-й элемент freejoint) и по Y (1-й элемент freejoint)
+        self.data.qpos[self.ball_qposadr] = offset_x
+        self.data.qpos[self.ball_qposadr + 1] = offset_y
         
+        # Высоту Z (2-й элемент) оставляем по умолчанию (0.4), кватернионы не трогаем
         mujoco.mj_forward(self.model, self.data)
 
-    def set_motor_positions(self, pitch_pos, roll_pos):
-        # Передаем углы. Работает корректно ТОЛЬКО если актуаторы в XML изменены на <position>!
-        self.data.ctrl[0] = pitch_pos
-        self.data.ctrl[1] = roll_pos
+    def get_state(self):
+        """Возвращает 2D состояние: [относительный_x, относительный_y, vx, vy]"""
+        ball_pos = self.data.xpos[self.ball_id]
+        platform_pos = self.data.xpos[self.platform_id]
+        
+        # Считаем относительные координаты по обеим осям плоскости
+        rel_x = ball_pos[0] - platform_pos[0]
+        rel_y = ball_pos[1] - platform_pos[1]
+        
+        # Линейные скорости по X и Y — это первые два элемента в qvel свободного сустава
+        vx = self.data.qvel[self.ball_qveladr]
+        vy = self.data.qvel[self.ball_qveladr + 1]
+        
+        return np.array([rel_x, rel_y, vx, vy])
+
+    def set_motors_positions(self, u_array):
+        """
+        Передаем вектор из двух управляющих сигналов:
+        u_array[0] -> motor1 (управление по оси X)
+        u_array[1] -> motor2 (управление по оси Y)
+        """
+        # MuJoCo автоматически сопоставит элементы массива с актуаторами в порядке их объявления в XML
+        self.data.ctrl[:] = u_array
 
     def step(self):
         mujoco.mj_step(self.model, self.data)
-
-    def get_ball_position(self):
-        return self.data.xpos[self.ball_id]
-
-    def get_ball_relative_position(self):
-        # Возвращаем только X и Y координаты (2D вектор ошибки)
-        ball_pos = self.data.xpos[self.ball_id]
-        platform_pos = self.data.xpos[self.platform_id]
-        return ball_pos[0] - platform_pos[0], ball_pos[1] - platform_pos[1]
-
-    def get_state(self):
-        # Возвращаем вектор состояния [x, vx, y, vy]
-        ball_pos = self.data.xpos[self.ball_id]
-        platform_pos = self.data.xpos[self.platform_id]
-        
-        # Линейные скорости (первые 3 компонента qvel)
-        # Нам нужны vx и vy. В MuJoCo они могут быть в разных индексах, 
-        # но обычно для свободного тела это первые два.
-        ball_vel = self.data.qvel[self.ball_qposadr : self.ball_qposadr + 2]
-        
-        return [ball_pos[0] - platform_pos[0], ball_vel[0], 
-               ball_pos[1] - platform_pos[1], ball_vel[1]]

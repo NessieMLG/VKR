@@ -1,50 +1,39 @@
 import numpy as np
 from scipy import linalg
 
-class MPCController:  # Оставляем имя класса, чтобы не ломать ваш main.py
+class LQRController2D:
     def __init__(self, A, B, Q, R):
         """
-        A: Дискретная матрица системы (4x4) -> z_{k+1} = A*z_k + B*u_k
+        A: Дискретная матрица системы (4x4) -> [x, y, vx, vy]_{k+1}
         B: Дискретная матрица входа (4x2)
-        Q: Матрица штрафов за состояние (4x4)
-        R: Матрица штрафов за управление (2x2)
+        Q: Штрафы за состояние (4x4)
+        R: Штраф за управление (2x2)
         """
         self.A = A
         self.B = B
         self.Q = Q
         self.R = R
         
-        print("Решаем дискретное уравнение Риккати (DARE)...")
-        # 1. ИСПРАВЛЕНИЕ: Используем дискретное уравнение Риккати для MuJoCo шагов
+        # Математика Риккати сама подстроится под новые 2D-размерности матриц!
         P = linalg.solve_discrete_are(A, B, Q, R)
         
-        # 2. ИСПРАВЛЕНИЕ: Формула K для дискретного LQR принципиально другая!
-        # K = (R + B^T * P * B)^-1 * B^T * P * A
+        # Вычисляем матрицу обратной связи K (она станет размером 2x4)
         self.K = np.linalg.inv(R + B.T @ P @ B) @ (B.T @ P @ A)
         
-        print("Матрица обратной связи K успешно вычислена:")
+        print("2D LQR initialized. Identified Feedback Gain K (Shape 2x4):")
         print(self.K)
 
-    # Измените в MPC.py метод compute_control:
     def compute_control(self, state):
-        # Убираем минус, меняем знак обратной связи на противоположный
-        return self.K @ state
-
-
-def main():
-    # Загружаем СТРОГО ДИСКРЕТНЫЕ матрицы (без деления на dt в identify_system.py!)
-    try:
-        A = np.loadtxt("A_matrix.csv", delimiter=",")
-        B = np.loadtxt("B_matrix.csv", delimiter=",")
-    except FileNotFoundError:
-        print("Ошибка: Сначала соберите данные и запустите идентификацию.")
-        return
-    
-    Q = np.diag([500.0, 10.0, 500.0, 10.0]) # Сильно штрафуем отклонение x и y шара
-    R = np.diag([0.1, 0.1])                # Даем моторам больше свободы (меньше штраф за u)
-    
-    mpc = MPCController(A, B, Q, R)
-    print("Дискретный LQR-контроллер готов к работе.")
-
-if __name__ == "__main__":
-    main()
+        """
+        state: [x, y, vx, vy] — длина 4
+        Возвращает: np.array([u_motor1, u_motor2]) — длина 2
+        """
+        # В 2D результатом умножения матрицы K (2x4) на вектор состояния (4x1) 
+        # автоматически будет вектор управления из 2 элементов (для motor1 и motor2)
+        u_out = -self.K @ state  
+        
+        # Ограничиваем углы обоих моторов в безопасном диапазоне (из вашего XML: ctrlrange="-0.15 0.15")
+        u_clipped = np.clip(u_out, -0.150, 0.150)
+        
+        # Возвращаем массив из двух элементов для передачи в self.data.ctrl[:]
+        return u_clipped

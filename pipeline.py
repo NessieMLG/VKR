@@ -8,6 +8,25 @@ import mujoco.viewer
 from physics import PhysicsEngine2D
 from MPC import LQRController2D
 
+def circle_target(scale=0.2, mesh=2000, current_step=0, dt=0.0001):
+    # Полное время одного круга в секундах: mesh * dt
+    # Угловая скорость (рад/с): omega = 2 * pi / T_circle
+    omega = (2 * np.pi) / (mesh * dt)
+    
+    # Текущий угол
+    alpha = omega * (current_step * dt)
+    
+    # Целевое положение
+    x_t = scale * np.cos(alpha)
+    y_t = scale * np.sin(alpha)
+    
+    # Целевая скорость (аналитическая производная)
+    vx_t = -scale * np.sin(alpha) * omega
+    vy_t = scale * np.cos(alpha) * omega
+    
+    return np.array([x_t, y_t, vx_t, vy_t])
+
+
 class PID2D:
     def __init__(self, kp=1.0, ki=0.2, kd=0.001, dt=0.001):
         self.kp = kp
@@ -32,7 +51,7 @@ def run_pipeline():
 
     print("=== ЭТАП 1: Сбор дискретных 2D данных ===")
     states, next_states, inputs = [], [], []
-    K_STEPS = 20 # Запись раз в 100 шагов (0.01с при timestep 0.0001)
+    K_STEPS = 1 # Запись раз в 100 шагов (0.01с при timestep 0.0001)
 
     for session in range(150):
         engine.reset_ball(offset_x=np.random.uniform(-0.1, 0.1), offset_y=np.random.uniform(-0.1, 0.1))
@@ -71,15 +90,15 @@ def run_pipeline():
     print("Идентифицированная 4х2 матрица B:\n", B_disc)
 
     print("\n=== ЭТАП 3: Инициализация класса 2D LQR ===")
-    Q = np.diag([5000.0, 5000.0, 100.0, 100.0])  
-    R = np.diag([0.1, 0.1]) 
+    Q = np.diag([5000.0, 5000.0, 10.0, 10.0])  
+    R = np.diag([0.01, 0.01]) 
     
     # Весь расчет уравнения Риккати ушел внутрь вашего класса!
     controller = LQRController2D(A_disc, B_disc, Q, R)
 
     print("\n=== ЭТАП 4: Тест 2D LQR контроллера ===")
-    engine.reset_ball(offset_x=0.08, offset_y=-0.08)
-    control_frequency = 20
+    engine.reset_ball(offset_x=0.2, offset_y=0.0)
+    control_frequency = 1
     t = 0
     u_control = np.array([0.0, 0.0])
 
@@ -87,10 +106,12 @@ def run_pipeline():
         while True: # Тестируем LQR первые 4 секунды
             if not viewer.is_running(): break
             state = engine.get_state()
+
+            target = state - circle_target(current_step=t, dt=engine.model.opt.timestep)
             
             if t % control_frequency == 0:
                 # Метод класса теперь сам умножает матрицы и делает np.clip() для двух осей
-                u_control = controller.compute_control(state) 
+                u_control = controller.compute_control(target) 
                 
             engine.set_motors_positions(u_control)
             engine.step()

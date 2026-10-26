@@ -16,13 +16,15 @@
       <body name="platform" pos="0 0 0">
         <joint name="platform_roll" type="hinge" axis="1 0 0" damping="0.5"/>
         <joint name="platform_pitch" type="hinge" axis="0 1 0" damping="0.5"/>
-        <geom name="platform_base" type="box" size="1.0 1.0 0.005" rgba="0.8 0.8 0.8 1" friction="0.5 0.05 0.001"/>
+        <geom name="platform_base" type="box" size="0.6 0.6 0.005" rgba="0.8 0.8 0.8 1" friction="0.5 0.05 0.001"/>
 
         <!-- ================= БОРТИКИ ДЛЯ ПЛАТФОРМЫ ================= -->
         <!-- Правый бортик (на +X краю платформы) -->
-        <!--<geom name="border_right" type="box" size="0.005 0.3 0.05" pos="0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!--<geom name="border_right" type="box" size="0.005 0.6 0.05" pos="0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!--<geom name="border_up" type="box" size="0.6 0.005 0.05" pos="0 0.595 0.01" rgba="0.6 0.6 0.6 1"/>-->
         <!-- Левый бортик (на -X краю платформы) -->
-        <!--<geom name="border_left" type="box" size="0.005 0.3 0.05" pos="-0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!--<geom name="border_left" type="box" size="0.005 0.6 0.05" pos="-0.595 0 0.01" rgba="0.6 0.6 0.6 1"/>-->
+        <!--<geom name="border_down" type="box" size="0.6 0.005 0.05" pos="0 -0.595 0.01" rgba="0.6 0.6 0.6 1"/>-->
         <!-- ========================================================= -->
         
         <!-- Точка крепления B1 находится ровно в мировых X=-0.02, Z=0.1000 -->
